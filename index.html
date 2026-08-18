@@ -439,7 +439,7 @@
         if (
           result.status !== 0 ||
           !result.data ||
-          !result.data.qr
+          !result.qr
         ) {
 
           throw new Error(
@@ -456,7 +456,7 @@
 
         const qrData =
           decodeURIComponent(
-            result.data.qr
+            result.qr
           );
 
 
