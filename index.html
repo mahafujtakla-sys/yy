@@ -438,15 +438,12 @@
 
         if (
           result.status !== 0 ||
-          !result.data ||
           !result.qr
         ) {
-
           throw new Error(
             result.message ||
             "服务器没有返回二维码"
           );
-
         }
 
 
