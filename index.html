@@ -101,7 +101,6 @@
       height: min(78vw, 340px);
 
       object-fit: contain;
-
       image-rendering: pixelated;
     }
 
@@ -156,7 +155,6 @@
 
     button:disabled {
       opacity: 0.55;
-
       cursor: default;
     }
 
@@ -170,7 +168,6 @@
     }
 
     @media (max-width: 480px) {
-
       main {
         padding: 26px 18px;
       }
@@ -198,7 +195,6 @@
       实时入场二维码
     </p>
 
-
     <div class="qr-wrap">
 
       <img
@@ -212,11 +208,9 @@
 
     </div>
 
-
     <div id="status">
       正在连接服务器…
     </div>
-
 
     <button
       id="refresh"
@@ -225,8 +219,9 @@
       立即刷新
     </button>
 
-
     <p class="note">
+      页面每 15 秒自动更新。
+      网络异常时继续保留上一次成功获取的二维码。
     </p>
 
   </main>
@@ -235,28 +230,19 @@
   <script>
 
     // =========================================================
-    // 修改这里：
-    // 换成你自己的 Cloudflare Worker 地址
+    // 腾讯云 CloudBase API 地址
     // =========================================================
 
     const API =
       "https://qr-proxy-d6gmwq26043bad167-1471108776.ap-shanghai.app.tcloudbase.com/qr";
 
 
-    // =========================================================
-    // 设置
-    // =========================================================
-
-    // 每 15 秒自动刷新
+    // 每 15 秒刷新
     const REFRESH_INTERVAL_MS = 15_000;
 
-    // 单次请求最多等待 8 秒
-    const REQUEST_TIMEOUT_MS = 8_000;
+    // 单次请求最多等待 10 秒
+    const REQUEST_TIMEOUT_MS = 10_000;
 
-
-    // =========================================================
-    // 页面元素
-    // =========================================================
 
     const qrImage =
       document.getElementById("qr");
@@ -271,93 +257,45 @@
       document.getElementById("refresh");
 
 
-    // 是否正在请求
     let isRefreshing = false;
-
-    // 是否至少成功获取过一次二维码
     let hasSuccessfulQr = false;
 
-    // 上次成功更新时间
-    let lastSuccessTime = null;
 
-
-    // =========================================================
-    // 状态显示
-    // =========================================================
-
-    function setStatus(
-      text,
-      error = false
-    ) {
-
+    function setStatus(text, error = false) {
       status.textContent = text;
-
-      status.classList.toggle(
-        "error",
-        error
-      );
-
+      status.classList.toggle("error", error);
     }
 
 
-    // =========================================================
-    // 获取二维码
-    // =========================================================
-
     async function refreshQr() {
 
-      // 防止上一次还没结束，
-      // 下一次请求又开始。
       if (isRefreshing) {
         return;
       }
 
-
       isRefreshing = true;
-
       refreshButton.disabled = true;
 
+      setStatus("正在获取最新二维码…");
 
-      // 如果已经有二维码，
-      // 刷新期间不要把旧二维码隐藏掉。
-      if (hasSuccessfulQr) {
-
-        setStatus(
-          "正在获取最新二维码…"
-        );
-
-      } else {
-
+      if (!hasSuccessfulQr) {
         placeholder.textContent =
           "正在获取二维码…";
-
-        setStatus(
-          "正在获取最新二维码…"
-        );
-
       }
 
-
-      // -------------------------------------------------------
-      // 8 秒超时
-      // -------------------------------------------------------
 
       const controller =
         new AbortController();
 
-
       const timeoutId =
         setTimeout(
-          () => {
-            controller.abort();
-          },
+          () => controller.abort(),
           REQUEST_TIMEOUT_MS
         );
 
 
       try {
 
-        // 时间戳防止浏览器 / CDN 使用缓存
         const requestUrl =
           API +
           "?t=" +
@@ -369,69 +307,41 @@
             requestUrl,
             {
               method: "GET",
-
               cache: "no-store",
-
-              signal:
-                controller.signal
+              signal: controller.signal
             }
           );
 
-
-        // -----------------------------------------------------
-        // HTTP 错误
-        // -----------------------------------------------------
 
         if (!response.ok) {
 
           let message =
             `HTTP ${response.status}`;
 
-
           try {
-
             const errorResult =
               await response.json();
 
-
-            if (
-              errorResult &&
-              errorResult.message
-            ) {
-
+            if (errorResult?.message) {
               message =
                 errorResult.message;
-
             }
-
-          } catch (_) {
-            // 返回内容不是 JSON 时，
-            // 使用 HTTP 状态码。
-          }
-
+          } catch (_) {}
 
           throw new Error(message);
-
         }
 
-
-        // -----------------------------------------------------
-        // 解析 JSON
-        // -----------------------------------------------------
 
         const result =
           await response.json();
 
 
         /*
-          Worker 当前返回格式：
+          腾讯云函数返回格式：
 
           {
-            "data": {
-              "qr":
-                "data:image/png;base64,..."
-            },
-            "status": 0
+            "status": 0,
+            "qr": "data:image/png;base64,..."
           }
         */
 
@@ -447,10 +357,6 @@
         }
 
 
-        // -----------------------------------------------------
-        // 解码二维码
-        // -----------------------------------------------------
-
         const qrData =
           decodeURIComponent(
             result.qr
@@ -462,19 +368,14 @@
             "data:image/"
           )
         ) {
-
           throw new Error(
             "二维码数据格式异常"
           );
-
         }
 
 
-        // -----------------------------------------------------
-        // 显示二维码
-        // -----------------------------------------------------
-
-        qrImage.src = qrData;
+        qrImage.src =
+          qrData;
 
         qrImage.style.display =
           "block";
@@ -483,24 +384,17 @@
           "none";
 
 
-        hasSuccessfulQr = true;
-
-        lastSuccessTime =
-          new Date();
+        hasSuccessfulQr =
+          true;
 
 
         setStatus(
           "已更新：" +
-          lastSuccessTime
+          new Date()
             .toLocaleTimeString()
         );
 
       }
-
-
-      // =======================================================
-      // 请求失败
-      // =======================================================
 
       catch (error) {
 
@@ -510,24 +404,17 @@
         );
 
 
-        // -----------------------------------------------------
-        // 超时
-        // -----------------------------------------------------
-
         if (
-          error &&
-          error.name === "AbortError"
+          error?.name ===
+          "AbortError"
         ) {
 
           if (hasSuccessfulQr) {
-
             setStatus(
               "本次刷新超时，继续显示上一次二维码",
               true
             );
-
           } else {
-
             placeholder.textContent =
               "服务器响应较慢，请点击“立即刷新”重试";
 
@@ -535,17 +422,9 @@
               "获取超时，请重试",
               true
             );
-
           }
 
-        }
-
-
-        // -----------------------------------------------------
-        // 其他错误
-        // -----------------------------------------------------
-
-        else {
+        } else {
 
           const message =
             error instanceof Error
@@ -577,19 +456,14 @@
 
       }
 
-
-      // =======================================================
-      // 请求结束
-      // =======================================================
-
       finally {
 
         clearTimeout(
           timeoutId
         );
 
-
-        isRefreshing = false;
+        isRefreshing =
+          false;
 
         refreshButton.disabled =
           false;
@@ -599,50 +473,24 @@
     }
 
 
-    // =========================================================
-    // 手动刷新
-    // =========================================================
-
     refreshButton.addEventListener(
       "click",
-      () => {
-
-        refreshQr();
-
-      }
+      refreshQr
     );
 
 
-    // =========================================================
-    // 页面打开立即获取
-    // =========================================================
-
+    // 页面打开后立即获取
     refreshQr();
 
 
-    // =========================================================
     // 每 15 秒自动刷新
-    // =========================================================
-
     setInterval(
-      () => {
-
-        refreshQr();
-
-      },
+      refreshQr,
       REFRESH_INTERVAL_MS
     );
 
 
-    // =========================================================
-    // 手机从后台重新回到网页时立即刷新
-    //
-    // 例如：
-    // Safari → 微信 → Safari
-    //
-    // 回来后不需要等待下一个 15 秒周期。
-    // =========================================================
-
+    // 手机重新切回 Safari 时立即刷新
     document.addEventListener(
       "visibilitychange",
       () => {
@@ -651,9 +499,7 @@
           document.visibilityState ===
           "visible"
         ) {
-
           refreshQr();
-
         }
 
       }
