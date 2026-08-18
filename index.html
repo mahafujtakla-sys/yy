@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f7f8" />
+  <title>洪山区文体中心游泳馆实时二维码</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f7f8;
+      color: #162126;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: #f4f7f8;
+    }
+    main {
+      width: min(92vw, 520px);
+      padding: 28px;
+      background: #fff;
+      border-radius: 24px;
+      box-shadow: 0 18px 60px rgba(18, 55, 68, .13);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(22px, 5vw, 28px);
+      line-height: 1.25;
+    }
+    .sub {
+      margin: 0 0 22px;
+      color: #65747a;
+      font-size: 15px;
+    }
+    .qr-wrap {
+      min-height: min(78vw, 360px);
+      display: grid;
+      place-items: center;
+      border: 1px solid #dfe8eb;
+      border-radius: 20px;
+      background: #fff;
+      overflow: hidden;
+    }
+    #qr {
+      width: min(74vw, 340px);
+      height: min(74vw, 340px);
+      object-fit: contain;
+      image-rendering: pixelated;
+      display: none;
+    }
+    #placeholder {
+      color: #8a979c;
+      font-size: 15px;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    #status {
+      margin: 18px 0 12px;
+      min-height: 24px;
+      color: #28798b;
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    #status.error { color: #b42318; }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 24px;
+      background: #00a8bf;
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:disabled { opacity: .55; cursor: default; }
+    .note {
+      margin: 16px 0 0;
+      color: #89969b;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    code {
+      padding: 2px 5px;
+      border-radius: 6px;
+      background: #f2f4f5;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>洪山区文体中心游泳馆</h1>
+    <p class="sub">实时入场二维码</p>
+
+    <div class="qr-wrap">
+      <img id="qr" alt="实时二维码" />
+      <div id="placeholder">正在获取最新二维码…</div>
+    </div>
+
+    <div id="status">准备连接场馆接口…</div>
+    <button id="refresh" type="button">立即刷新</button>
+    <p class="note">页面每 10 秒自动刷新。仅用于本人已购买且按场馆规则允许使用的权益。</p>
+  </main>
+
+  <script>
+    // ============================================================
+    // 只需要修改这里：把下面内容替换成你当前有效的 WXAPPCHATID
+    // 注意：放在 GitHub Pages 后，这个值可以被访问网页的人看到。
+    // ============================================================
+    const WXAPPCHATID = "请把你的WXAPPCHATID粘贴到这里";
+
+    const API = "https://www.forzadata.cn/api/wxApp/5878/myQr/v2";
+    const REFRESH_INTERVAL_MS = 10_000;
+
+    const image = document.querySelector("#qr");
+    const placeholder = document.querySelector("#placeholder");
+    const status = document.querySelector("#status");
+    const refreshButton = document.querySelector("#refresh");
+
+    function setStatus(text, isError = false) {
+      status.textContent = text;
+      status.classList.toggle("error", isError);
+    }
+
+    async function refreshQr() {
+      if (!WXAPPCHATID || WXAPPCHATID.includes("请把")) {
+        setStatus("请先在 index.html 中填写 WXAPPCHATID。", true);
+        placeholder.textContent = "尚未配置 WXAPPCHATID";
+        return;
+      }
+
+      refreshButton.disabled = true;
+      setStatus("正在获取最新二维码…");
+
+      try {
+        const response = await fetch(API, {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            "content-type": "application/json",
+            "WXAPPCHATID": WXAPPCHATID
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.status !== 0 || !result.data?.qr) {
+          throw new Error(result.message || "场馆接口没有返回二维码");
+        }
+
+        const dataUrl = decodeURIComponent(result.data.qr);
+        if (!dataUrl.startsWith("data:image/")) {
+          throw new Error("二维码数据格式异常");
+        }
+
+        image.src = dataUrl;
+        image.style.display = "block";
+        placeholder.style.display = "none";
+        setStatus("已更新：" + new Date().toLocaleTimeString());
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        image.style.display = "none";
+        placeholder.style.display = "block";
+
+        if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+          placeholder.textContent = "请求被浏览器阻止或网络连接失败";
+          setStatus("获取失败：可能是 CORS 跨域限制。如果出现这个错误，就需要加一个云端代理。", true);
+        } else {
+          placeholder.textContent = "暂时无法获取二维码";
+          setStatus("获取失败：" + message, true);
+        }
+      } finally {
+        refreshButton.disabled = false;
+      }
+    }
+
+    refreshButton.addEventListener("click", refreshQr);
+    refreshQr();
+    setInterval(refreshQr, REFRESH_INTERVAL_MS);
+  </script>
+</body>
+</html>
